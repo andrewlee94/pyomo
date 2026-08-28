@@ -33,6 +33,7 @@ from pyomo.contrib.pynumero.interfaces.nlp_projections import ProjectedNLP
 from pyomo.core.base.suffix import SuffixFinder
 from pyomo.contrib.pynumero.interfaces.external_grey_box_constraint import (
     ExternalGreyBoxConstraint,
+    ExternalGreyBoxConstraintData,
 )
 
 
@@ -186,7 +187,12 @@ class PyomoNLPWithGreyBoxBlocks(NLP):
             if not nlp.has_hessian_support():
                 self._has_hessian_support = False
 
-        # wrap all the nlp objects with projected nlp objects
+        # wrap all the nlp objects with projected nlp objects. Keep a
+        # reference to the un-projected PyomoNLP so the equality/inequality
+        # compatibility API below (which delegates to it) still has access
+        # to its ASL-based constraint classification after self._pyomo_nlp
+        # is replaced by a ProjectedNLP.
+        self._pyomo_only_nlp = self._pyomo_nlp
         self._pyomo_nlp = ProjectedNLP(self._pyomo_nlp, primals_names)
         for i, gbnlp in enumerate(greybox_nlps):
             greybox_nlps[i] = ProjectedNLP(greybox_nlps[i], primals_names)
@@ -533,10 +539,19 @@ class PyomoNLPWithGreyBoxBlocks(NLP):
         return list(self._pyomo_model_constraint_names_to_datas.values())
 
     def get_pyomo_equality_constraints(self):
-        return [c for c in self.get_pyomo_constraints() if c.equality]
+        # Ordinary Pyomo constraints are classified using the same ASL/NL-writer
+        # row classification that PyomoNLP itself relies on, so the two stay
+        # consistent. ExternalGreyBoxConstraints are always equalities by
+        # construction and are not part of the inner PyomoNLP's NL file, so
+        # they are appended separately.
+        return self._pyomo_only_nlp.get_pyomo_equality_constraints() + [
+            c
+            for c in self.get_pyomo_constraints()
+            if isinstance(c, ExternalGreyBoxConstraintData)
+        ]
 
     def get_pyomo_inequality_constraints(self):
-        return [c for c in self.get_pyomo_constraints() if not c.equality]
+        return self._pyomo_only_nlp.get_pyomo_inequality_constraints()
 
     def get_primal_indices(self, var):
         # get the name of the variable

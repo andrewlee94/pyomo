@@ -43,6 +43,7 @@ from pyomo.contrib.pynumero.asl import AmplInterface
 from pyomo.contrib.pynumero.interfaces.external_grey_box import ExternalGreyBoxBlock
 from pyomo.contrib.pynumero.interfaces.external_grey_box_constraint import (
     ExternalGreyBoxConstraint,
+    ExternalGreyBoxConstraintData,
 )
 
 pyomo_nlp, pyomo_nlp_available = attempt_import(
@@ -1014,10 +1015,18 @@ class IncidenceGraphInterface:
                 body_text = "<br>".join(
                     textwrap.wrap(str(c.body), width=120, subsequent_indent="    ")
                 )
-                node_text.append(
-                    f"{str(c)}<br>lb: {str(c.lower)}<br>body: {body_text}<br>"
-                    f"ub: {str(c.upper)}<br>active: {str(c.active)}"
-                )
+                if isinstance(c, ExternalGreyBoxConstraintData):
+                    # Grey-box implicit constraints don't have real lb/ub
+                    # (they're always 0), so there's nothing meaningful to
+                    # show beyond the body/active status.
+                    node_text.append(
+                        f"{str(c)}<br>body: {body_text}<br>active: {str(c.active)}"
+                    )
+                else:
+                    node_text.append(
+                        f"{str(c)}<br>lb: {str(c.lower)}<br>body: {body_text}<br>"
+                        f"ub: {str(c.upper)}<br>active: {str(c.active)}"
+                    )
             else:
                 # According to convention, we are a variable node
                 v = variables[node - M]

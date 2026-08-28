@@ -168,9 +168,13 @@ class TestExternalGreyBoxConstraintProperties(unittest.TestCase):
         external_model = ex_models.PressureDropSingleEquality()
         m.egb.set_external_model(external_model)
 
-        # Create constraint with valid id, then manually change it
+        # Create constraint with valid id, then manually change it. The
+        # resolved (is_equality, index) cache must also be cleared, since
+        # body no longer re-derives it from _implicit_constraint_id on every
+        # access (see _validate_implicit_constraint_id/_resolved_index).
         m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
         m.egb.c._implicit_constraint_id = 'invalid_id'
+        m.egb.c._resolved_index = None
 
         with self.assertRaises(ValueError) as context:
             _ = m.egb.c.body
@@ -189,157 +193,6 @@ class TestExternalGreyBoxConstraintProperties(unittest.TestCase):
         # Expected: 0 - (0 - 4*0*0) = 0
         body_value = pyo.value(m.egb.c.body)
         self.assertAlmostEqual(body_value, 0.0, places=6)
-
-    def test_lower_property(self):
-        """Test lower bound is always 0.0."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        self.assertEqual(m.egb.c.lower, 0.0)
-
-    def test_upper_property(self):
-        """Test upper bound is always 0.0."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        self.assertEqual(m.egb.c.upper, 0.0)
-
-    def test_lb_property(self):
-        """Test lb (lower bound value) is always 0.0."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        self.assertEqual(m.egb.c.lb, 0.0)
-
-    def test_ub_property(self):
-        """Test ub (upper bound value) is always 0.0."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        self.assertEqual(m.egb.c.ub, 0.0)
-
-    def test_equality_property(self):
-        """Test equality property is always True."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        self.assertTrue(m.egb.c.equality)
-
-    def test_strict_lower_property(self):
-        """Test strict_lower is always False."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        self.assertFalse(m.egb.c.strict_lower)
-
-    def test_strict_upper_property(self):
-        """Test strict_upper is always False."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        self.assertFalse(m.egb.c.strict_upper)
-
-    def test_has_lb_method(self):
-        """Test has_lb() returns True."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        self.assertTrue(m.egb.c.has_lb())
-
-    def test_has_ub_method(self):
-        """Test has_ub() returns True."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        self.assertTrue(m.egb.c.has_ub())
-
-    def test_expr_property_raises(self):
-        """Test expr property raises TypeError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        with self.assertRaises(TypeError) as context:
-            _ = m.egb.c.expr
-        self.assertIn("do not have an explicit expression", str(context.exception))
-
-    def test_get_value_raises(self):
-        """Test get_value() raises TypeError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        with self.assertRaises(TypeError) as context:
-            m.egb.c.get_value()
-        self.assertIn("do not have an explicit expression", str(context.exception))
-
-    def test_set_value_raises(self):
-        """Test set_value() raises TypeError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        with self.assertRaises(TypeError) as context:
-            m.egb.c.set_value(None)
-        self.assertIn("do not have an explicit expression", str(context.exception))
-
-    def test_to_bounded_expression_raises(self):
-        """Test to_bounded_expression() raises TypeError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        with self.assertRaises(TypeError) as context:
-            m.egb.c.to_bounded_expression()
-        self.assertIn("do not have an explicit expression", str(context.exception))
 
 
 @skip_implicit_constraint_construction
@@ -749,53 +602,8 @@ class TestEGBConstraintBody(unittest.TestCase):
 
 
 @skip_implicit_constraint_construction
-class TestExternalGreyBoxConstraintSlack(unittest.TestCase):
-    """Test slack methods of ExternalGreyBoxConstraint."""
-
-    def test_lslack(self):
-        """Test lslack() returns body value."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        external_model.set_input_values(np.asarray([100, 2, 3, 50], dtype=np.float64))
-
-        lslack_value = m.egb.c.lslack()
-        body_value = pyo.value(m.egb.c.body)
-        self.assertAlmostEqual(lslack_value, body_value, places=6)
-
-    def test_uslack(self):
-        """Test uslack() returns negative body value."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        external_model.set_input_values(np.asarray([100, 2, 3, 50], dtype=np.float64))
-
-        uslack_value = m.egb.c.uslack()
-        body_value = pyo.value(m.egb.c.body)
-        self.assertAlmostEqual(uslack_value, -body_value, places=6)
-
-    def test_slack(self):
-        """Test slack() returns negative absolute value of body."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        external_model.set_input_values(np.asarray([100, 2, 3, 50], dtype=np.float64))
-
-        slack_value = m.egb.c.slack()
-        body_value = pyo.value(m.egb.c.body)
-        self.assertAlmostEqual(slack_value, -abs(body_value), places=6)
+class TestExternalGreyBoxConstraintCall(unittest.TestCase):
+    """Test __call__() evaluation of ExternalGreyBoxConstraint."""
 
     def test_call_method(self):
         """Test __call__() method returns body value."""
@@ -834,32 +642,6 @@ class TestExternalGreyBoxConstraintActive(unittest.TestCase):
         m.egb.activate()
         self.assertTrue(m.egb.c.active)
 
-    def test_activate_raises(self):
-        """Test activate() raises TypeError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        with self.assertRaises(TypeError) as context:
-            m.egb.c.activate()
-        self.assertIn("cannot be activated or deactivated", str(context.exception))
-
-    def test_deactivate_raises(self):
-        """Test deactivate() raises TypeError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        with self.assertRaises(TypeError) as context:
-            m.egb.c.deactivate()
-        self.assertIn("cannot be activated or deactivated", str(context.exception))
-
 
 @skip_implicit_constraint_construction
 class TestScalarExternalGreyBoxConstraint(unittest.TestCase):
@@ -880,106 +662,6 @@ class TestScalarExternalGreyBoxConstraint(unittest.TestCase):
         self.assertIn(
             "before the ExternalGreyBoxConstraint has been assigned",
             str(context.exception),
-        )
-
-    def test_scalar_lower_before_assignment_raises(self):
-        """Test accessing lower before assignment raises ValueError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-        m.egb.c.clear()
-
-        with self.assertRaises(ValueError) as context:
-            _ = m.egb.c.lower
-        self.assertIn(
-            "before the ExternalGreyBoxConstraint has been assigned",
-            str(context.exception),
-        )
-
-    def test_scalar_upper_before_assignment_raises(self):
-        """Test accessing upper before assignment raises ValueError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-        m.egb.c.clear()
-
-        with self.assertRaises(ValueError) as context:
-            _ = m.egb.c.upper
-        self.assertIn(
-            "before the ExternalGreyBoxConstraint has been assigned",
-            str(context.exception),
-        )
-
-    def test_scalar_equality_before_assignment_raises(self):
-        """Test accessing equality before assignment raises ValueError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-        m.egb.c.clear()
-
-        with self.assertRaises(ValueError) as context:
-            _ = m.egb.c.equality
-        self.assertIn(
-            "before the ExternalGreyBoxConstraint has been assigned",
-            str(context.exception),
-        )
-
-    def test_scalar_strict_lower_before_assignment_raises(self):
-        """Test accessing strict_lower before assignment raises ValueError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-        m.egb.c.clear()
-
-        with self.assertRaises(ValueError) as context:
-            _ = m.egb.c.strict_lower
-        self.assertIn(
-            "before the ExternalGreyBoxConstraint has been assigned",
-            str(context.exception),
-        )
-
-    def test_scalar_strict_upper_before_assignment_raises(self):
-        """Test accessing strict_upper before assignment raises ValueError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-        m.egb.c.clear()
-
-        with self.assertRaises(ValueError) as context:
-            _ = m.egb.c.strict_upper
-        self.assertIn(
-            "before the ExternalGreyBoxConstraint has been assigned",
-            str(context.exception),
-        )
-
-    def test_scalar_add_with_invalid_index_raises(self):
-        """Test add() with non-None index raises ValueError."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropSingleEquality()
-        m.egb.set_external_model(external_model)
-
-        m.egb.c = ExternalGreyBoxConstraint(implicit_constraint_ids='pdrop')
-
-        with self.assertRaises(ValueError) as context:
-            m.egb.c.add(1, None)
-        self.assertIn(
-            "does not accept index values other than None", str(context.exception)
         )
 
 
@@ -1058,9 +740,7 @@ class TestExternalGreyBoxConstraintDisplay(unittest.TestCase):
         result = output.getvalue()
 
         # Check that output contains expected elements
-        self.assertIn('Lower', result)
         self.assertIn('Body', result)
-        self.assertIn('Upper', result)
 
     def test_display_inactive_does_nothing(self):
         """Test display() on inactive component produces no output."""
@@ -1103,7 +783,7 @@ class TestExternalGreyBoxConstraintDisplay(unittest.TestCase):
         self.assertIn(("Active", True), headers)
 
         # Check columns
-        self.assertEqual(columns, ("Lower", "Body", "Upper", "Active"))
+        self.assertEqual(columns, ("Body", "Active"))
 
 
 @skip_implicit_constraint_construction
@@ -1334,35 +1014,6 @@ class TestIndexedExternalGreyBoxConstraint(unittest.TestCase):
         for idx, constraint_data in items:
             self.assertIn(idx, m.set)
             self.assertEqual(constraint_data._implicit_constraint_id, idx)
-
-    def test_indexed_properties(self):
-        """Test properties work correctly for indexed constraints."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropTwoOutputs()
-        m.egb.set_external_model(external_model)
-
-        m.set = pyo.Set(initialize=['P2', 'Pout'])
-
-        m.egb.c = ExternalGreyBoxConstraint(m.set)
-
-        for idx in m.set:
-            # Test bounds
-            self.assertEqual(m.egb.c[idx].lower, 0.0)
-            self.assertEqual(m.egb.c[idx].upper, 0.0)
-            self.assertEqual(m.egb.c[idx].lb, 0.0)
-            self.assertEqual(m.egb.c[idx].ub, 0.0)
-
-            # Test equality
-            self.assertTrue(m.egb.c[idx].equality)
-
-            # Test strict bounds
-            self.assertFalse(m.egb.c[idx].strict_lower)
-            self.assertFalse(m.egb.c[idx].strict_upper)
-
-            # Test has_lb/has_ub
-            self.assertTrue(m.egb.c[idx].has_lb())
-            self.assertTrue(m.egb.c[idx].has_ub())
 
     def test_indexed_with_tuple_index(self):
         """Test indexed constraint with tuple indices."""
@@ -1637,34 +1288,6 @@ class TestIndexedExternalGreyBoxConstraintAdvanced(unittest.TestCase):
         # All should now be inactive
         for idx in m.set:
             self.assertFalse(m.egb.c[idx].active)
-
-    def test_indexed_slack_methods(self):
-        """Test slack methods for indexed constraints."""
-        m = pyo.ConcreteModel()
-        m.egb = ExternalGreyBoxBlock()
-        external_model = ex_models.PressureDropTwoOutputs()
-        m.egb.set_external_model(external_model)
-
-        m.set = pyo.Set(initialize=['P2', 'Pout'])
-
-        m.egb.c = ExternalGreyBoxConstraint(m.set)
-
-        # Set inputs
-        external_model.set_input_values(np.asarray([100, 2, 3], dtype=np.float64))
-        m.egb.outputs['P2'].set_value(70.0)
-        m.egb.outputs['Pout'].set_value(30.0)
-
-        for idx in m.set:
-            body_val = pyo.value(m.egb.c[idx].body)
-
-            # Test lslack
-            self.assertAlmostEqual(m.egb.c[idx].lslack(), body_val, places=6)
-
-            # Test uslack
-            self.assertAlmostEqual(m.egb.c[idx].uslack(), -body_val, places=6)
-
-            # Test slack
-            self.assertAlmostEqual(m.egb.c[idx].slack(), -abs(body_val), places=6)
 
     def test_constraint_with_negative_inputs(self):
         """Test constraint evaluation with negative input values."""

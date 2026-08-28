@@ -48,7 +48,7 @@ class EGBConstraintBody:
     * identification of incident variables in the implicit constraint
     """
 
-    def __init__(self, grey_box, constraint_id):
+    def __init__(self, grey_box, constraint_id, resolved_index=None):
         # Store a weakref to the parent ExternalGreyBoxBlock to avoid a
         # circular reference: EGBData -> EGBConstraint -> EGBConstraintBody
         # -> EGBData.  EGBData always outlives EGBConstraintBody (it owns the
@@ -58,6 +58,19 @@ class EGBConstraintBody:
 
         self._output_idx = None
         self._eq_cons_idx = None
+
+        if resolved_index is not None:
+            # The caller (typically ExternalGreyBoxConstraintData, which
+            # resolves and caches this once in _validate_implicit_constraint_id)
+            # already knows which list the name belongs to and at what
+            # position, so we can skip re-searching equality_constraint_names()/
+            # output_names() by name.
+            is_equality, idx = resolved_index
+            if is_equality:
+                self._eq_cons_idx = idx
+            else:
+                self._output_idx = idx
+            return
 
         ext_model = self._egb().get_external_model()
 
@@ -248,7 +261,7 @@ class ExternalGreyBoxConstraintData(ComponentData):
     # _index is intentionally omitted: ComponentData already defines it in
     # its own __slots__.  Redefining it here would create a second, shadowing
     # slot descriptor and waste memory.
-    __slots__ = ('_implicit_constraint_id', '_body')
+    __slots__ = ('_implicit_constraint_id', '_body', '_resolved_index')
 
     def __init__(self, implicit_constraint_id=None, component=None):
         #
@@ -265,12 +278,19 @@ class ExternalGreyBoxConstraintData(ComponentData):
 
         # Placeholder for body
         self._body = None
+        # (is_equality, position) in the external model's
+        # equality_constraint_names()/output_names(), cached by
+        # _validate_implicit_constraint_id() so EGBConstraintBody does not
+        # have to re-search those lists by name every time it is built.
+        self._resolved_index = None
 
     def _validate_implicit_constraint_id(self):
         """Validate ``implicit_constraint_id`` against the attached external model.
 
         Checks that the identifier is a string and that it matches either an
-        equality-constraint name or an output name in the external model.
+        equality-constraint name or an output name in the external model, and
+        caches its resolved ``(is_equality, position)`` in ``_resolved_index``
+        for :attr:`body` to hand to :class:`EGBConstraintBody` directly.
         Must be called after the owning component has been added to an
         ExternalGreyBoxBlock (i.e. from within ``construct()``), so that
         ``self.parent_block()`` is available.
@@ -289,10 +309,13 @@ class ExternalGreyBoxConstraintData(ComponentData):
                 f"strings. Invalid value: {implicit_constraint_id!r}"
             )
         external_model = self.parent_block().get_external_model()
-        if not (
-            implicit_constraint_id in external_model.equality_constraint_names()
-            or implicit_constraint_id in external_model.output_names()
-        ):
+        equality_names = external_model.equality_constraint_names()
+        output_names = external_model.output_names()
+        if implicit_constraint_id in equality_names:
+            self._resolved_index = (True, equality_names.index(implicit_constraint_id))
+        elif implicit_constraint_id in output_names:
+            self._resolved_index = (False, output_names.index(implicit_constraint_id))
+        else:
             raise ValueError(
                 f"implicit_constraint_id '{implicit_constraint_id}' does not exist "
                 f"in the external model associated with ExternalGreyBoxBlock "
@@ -304,20 +327,6 @@ class ExternalGreyBoxConstraintData(ComponentData):
         body = value(self.body, exception=exception)
         return body
 
-    def to_bounded_expression(self, *args, **kwargs):
-        """Duck-type method from ConstraintData.
-
-        Raises
-        ------
-
-        TypeError
-            Always. ExternalGreyBoxConstraints do not have an explicit expression.
-
-        """
-        raise TypeError(
-            "ExternalGreyBoxConstraints do not have an explicit expression."
-        )
-
     @property
     def body(self):
         """Value (residual) of the implicit ExternalGreyBoxConstraint."""
@@ -326,140 +335,16 @@ class ExternalGreyBoxConstraintData(ComponentData):
             # weakref back to the parent block (see EGBConstraintBody.__init__),
             # so storing a strong reference here does not create a cycle.
             self._body = EGBConstraintBody(
-                grey_box=self.parent_block(), constraint_id=self._implicit_constraint_id
+                grey_box=self.parent_block(),
+                constraint_id=self._implicit_constraint_id,
+                resolved_index=self._resolved_index,
             )
         return self._body
 
     @property
-    def lower(self):
-        """The lower bound of a ExternalGreyBoxConstraint.
-
-        Implicit constraints always have a lower bound of 0.
-
-        """
-        return 0.0
-
-    @property
-    def upper(self):
-        """Access the upper bound of a ExternalGreyBoxConstraint.
-
-        Implicit constraints always have an upper bound of 0.
-
-        """
-        return 0.0
-
-    @property
-    def lb(self):
-        """float : the value of the lower bound of a ExternalGreyBoxConstraint expression.
-
-        Implicit constraints always have a lower bound of 0.
-        """
-        return 0.0
-
-    @property
-    def ub(self):
-        """float : the value of the upper bound of a ExternalGreyBoxConstraint expression.
-
-        Implicit constraints always have an upper bound of 0.
-        """
-        return 0.0
-
-    @property
-    def equality(self):
-        """bool : True. ExternalGreyBoxConstraints are always equalities."""
-        return True
-
-    @property
-    def strict_lower(self):
-        """bool : True if this ExternalGreyBoxConstraint has a strict lower bound."""
-        return False
-
-    @property
-    def strict_upper(self):
-        """bool : True if this ExternalGreyBoxConstraint has a strict upper bound."""
-        return False
-
-    def has_lb(self):
-        """Returns :const:`True`. Implicit constraints always have a lower bound."""
-        return True
-
-    def has_ub(self):
-        """Returns :const:`True`. Implicit constraints always have an upper bound."""
-        return True
-
-    @property
-    def expr(self):
-        """Return the expression associated with this ExternalGreyBoxConstraint.
-
-        Raises:
-            TypeError
-                Always. ExternalGreyBoxConstraints do not have an explicit expression.
-        """
-        raise TypeError(
-            "ExternalGreyBoxConstraints do not have an explicit expression."
-        )
-
-    def get_value(self):
-        """Get the expression on this ExternalGreyBoxConstraint.
-
-        Raises:
-            TypeError
-                Always. ExternalGreyBoxConstraints do not have an explicit expression.
-        """
-        return self.expr
-
-    def set_value(self, expr):
-        """Set the expression on this ExternalGreyBoxConstraint.
-
-        Raises:
-            TypeError
-                Always. ExternalGreyBoxConstraints do not have an explicit expression.
-        """
-        raise TypeError(
-            "ExternalGreyBoxConstraints do not have an explicit expression."
-        )
-
-    def lslack(self):
-        """
-        Returns the value of f(x)-L for ExternalGreyBoxConstraints of the form:
-            L <= f(x) (<= U)
-            (U >=) f(x) >= L
-        """
-        return value(self.body)
-
-    def uslack(self):
-        """
-        Returns the value of U-f(x) for ExternalGreyBoxConstraints of the form:
-            (L <=) f(x) <= U
-            U >= f(x) (>= L)
-        """
-        return -value(self.body)
-
-    def slack(self):
-        """
-        Returns the smaller of lslack and uslack values
-        """
-        return -abs(value(self.body))
-
-    # Duck-typing a few common Constraint methods and properties
-    @property
     def active(self):
         """bool : True if this ExternalGreyBoxConstraint is active."""
         return self.parent_block().active
-
-    def activate(self):
-        """Raise a TypeError, as ExternalGreyBoxConstraints cannot be activated or deactivated."""
-        raise TypeError(
-            "ExternalGreyBoxConstraints cannot be activated or deactivated individually. "
-            "Activate or deactivate the parent ExternalGreyBoxBlock instead."
-        )
-
-    def deactivate(self):
-        """Raise a TypeError, as ExternalGreyBoxConstraints cannot be activated or deactivated."""
-        raise TypeError(
-            "ExternalGreyBoxConstraints cannot be activated or deactivated individually. "
-            "Activate or deactivate the parent ExternalGreyBoxBlock instead."
-        )
 
 
 @ModelComponentFactory.register("General ExternalGreyBoxConstraint expressions.")
@@ -611,13 +496,8 @@ class ExternalGreyBoxConstraint(IndexedComponent):
                 ("Active", self.active),
             ],
             self.items,
-            ("Lower", "Body", "Upper", "Active"),
-            lambda k, v: [
-                "-Inf" if v.lower is None else v.lower,
-                v.body,
-                "+Inf" if v.upper is None else v.upper,
-                v.active,
-            ],
+            ("Body", "Active"),
+            lambda k, v: [v.body, v.active],
         )
 
     @property
@@ -651,12 +531,8 @@ class ExternalGreyBoxConstraint(IndexedComponent):
             ostream,
             prefix + tab,
             ((k, v) for k, v in self._data.items() if v.active),
-            ("Lower", "Body", "Upper"),
-            lambda k, v: [
-                value(v.lower, exception=False),
-                value(v.body, exception=False),
-                value(v.upper, exception=False),
-            ],
+            ("Body",),
+            lambda k, v: [value(v.body, exception=False)],
         )
 
 
@@ -697,16 +573,10 @@ class ScalarExternalGreyBoxConstraint(
         self._implicit_constraint_id = self._implicit_constraint_ids
         self._validate_implicit_constraint_id()
 
-    #
-    # Singleton ExternalGreyBoxConstraints are strange in that we want them to be
-    # both be constructed but have len() == 0 when not initialized with
-    # anything (at least according to the unit tests that are
-    # currently in place). So during initialization only, we will
-    # treat them as "indexed" objects where things like
-    # Constraint.Skip are managed. But after that they will behave
-    # like ExternalGreyBoxConstraintData objects where set_value does not handle
-    # Constraint.Skip but expects a valid expression or None.
-    #
+    # A ScalarExternalGreyBoxConstraint is constructed but has len() == 0
+    # until its implicit_constraint_ids argument is assigned (via
+    # construct()), so body must guard against being accessed on that
+    # not-yet-assigned instance.
     @property
     def body(self):
         """The body (variable portion) of a ExternalGreyBoxConstraint expression."""
@@ -718,114 +588,11 @@ class ScalarExternalGreyBoxConstraint(
             )
         return ExternalGreyBoxConstraintData.body.fget(self)
 
-    @property
-    def lower(self):
-        """The lower bound of a ExternalGreyBoxConstraint expression.
-
-        This is the fixed lower bound of a ExternalGreyBoxConstraint as a Pyomo
-        expression.  This may contain potentially variable terms
-        that are currently fixed.  If there is no lower bound, this will
-        return `None`.
-
-        """
-        if not self._data:
-            raise ValueError(
-                f"Accessing the lower bound of ScalarExternalGreyBoxConstraint "
-                f"'{self.name}' before the ExternalGreyBoxConstraint has been assigned. "
-                "There is currently nothing to access."
-            )
-        return ExternalGreyBoxConstraintData.lower.fget(self)
-
-    @property
-    def upper(self):
-        """Access the upper bound of a ExternalGreyBoxConstraint expression.
-
-        This is the fixed upper bound of a ExternalGreyBoxConstraint as a Pyomo
-        expression.  This may contain potentially variable terms
-        that are currently fixed.  If there is no upper bound, this will
-        return `None`.
-
-        """
-        if not self._data:
-            raise ValueError(
-                f"Accessing the upper bound of ScalarExternalGreyBoxConstraint "
-                f"'{self.name}' before the ExternalGreyBoxConstraint has been assigned. "
-                "There is currently nothing to access."
-            )
-        return ExternalGreyBoxConstraintData.upper.fget(self)
-
-    @property
-    def equality(self):
-        """bool : True if this is an equality ExternalGreyBoxConstraint."""
-        if not self._data:
-            raise ValueError(
-                f"Accessing the equality flag of ScalarExternalGreyBoxConstraint "
-                f"'{self.name}' before the ExternalGreyBoxConstraint has been assigned. "
-                "There is currently nothing to access."
-            )
-        return ExternalGreyBoxConstraintData.equality.fget(self)
-
-    @property
-    def strict_lower(self):
-        """bool : True if this ExternalGreyBoxConstraint has a strict lower bound."""
-        if not self._data:
-            raise ValueError(
-                f"Accessing the strict_lower flag of ScalarExternalGreyBoxConstraint "
-                f"'{self.name}' before the ExternalGreyBoxConstraint has been assigned. "
-                "There is currently nothing to access."
-            )
-        return ExternalGreyBoxConstraintData.strict_lower.fget(self)
-
-    @property
-    def strict_upper(self):
-        """bool : True if this ExternalGreyBoxConstraint has a strict upper bound."""
-        if not self._data:
-            raise ValueError(
-                f"Accessing the strict_upper flag of ScalarExternalGreyBoxConstraint "
-                f"'{self.name}' before the ExternalGreyBoxConstraint has been assigned. "
-                "There is currently nothing to access."
-            )
-        return ExternalGreyBoxConstraintData.strict_upper.fget(self)
-
     def clear(self):
         self._data = {}
 
-    def set_value(self, expr):
-        """Set the expression on this ExternalGreyBoxConstraint."""
-        if not self._data:
-            self._data[None] = self
-        return super().set_value(expr)
 
-    #
-    # Leaving this method for backward compatibility reasons.
-    # (probably should be removed)
-    #
-    def add(self, index, expr):
-        """Add a ExternalGreyBoxConstraint with a given index."""
-        if index is not None:
-            raise ValueError(
-                f"ScalarExternalGreyBoxConstraint object '{self.name}' does not accept "
-                f"index values other than None. Invalid value: {index}"
-            )
-        self.set_value(expr)
-        return self
-
-
-@disable_methods(
-    {
-        '__call__',
-        'add',
-        'set_value',
-        'to_bounded_expression',
-        'expr',
-        'body',
-        'lower',
-        'upper',
-        'equality',
-        'strict_lower',
-        'strict_upper',
-    }
-)
+@disable_methods({'__call__', 'body'})
 class AbstractScalarExternalGreyBoxConstraint(ScalarExternalGreyBoxConstraint):
     """
     Implementation of abstract ExternalGreyBoxConstraints.
